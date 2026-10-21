@@ -497,7 +497,8 @@ class ArchiveOrg:
         if not force and os.path.exists(PORTS_FILE):
             try:
                 d = json.load(open(PORTS_FILE))
-                if time.time() - d.get("fetched_at", 0) < PORTS_TTL and d.get("items"):
+                if (time.time() - d.get("fetched_at", 0) < PORTS_TTL
+                        and d.get("ver") == PORTS_VER and d.get("items")):
                     PORTS_CACHE = d["items"]
                     return PORTS_CACHE
             except Exception:
@@ -554,7 +555,7 @@ class ArchiveOrg:
             os.makedirs(CACHE_DIR, exist_ok=True)
             tmp = PORTS_FILE + ".tmp"
             with open(tmp, "w") as f:
-                json.dump({"fetched_at": time.time(), "items": out}, f)
+                json.dump({"fetched_at": time.time(), "ver": PORTS_VER, "items": out}, f)
             os.replace(tmp, PORTS_FILE)
         except Exception:
             pass
@@ -1121,6 +1122,7 @@ POPULAR_FILE = os.path.join(CACHE_DIR, "popular.json")
 POPULAR_TTL = 30 * 86400
 PORTS_FILE = os.path.join(CACHE_DIR, "switchports.json")
 PORTS_TTL = 7 * 86400
+PORTS_VER = 2
 PORTS_CACHE = None
 POPULAR = None
 POPULAR_NORM = None
