@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# rom-remote — roda o rom no Mac worker (ssh mac) e traz os arquivos baixados.
+#
+# Uso:
+#   rom-remote -p switch "mario kart"
+#   ROM_REMOTE_HOST=mac rom-remote -y "zelda"
+set -euo pipefail
+
+HOST="${ROM_REMOTE_HOST:-mac}"
+REMOTE_DIR="${ROM_REMOTE_DIR:-/Users/sostenesapollo/Downloads/roms}"
+LOCAL_DIR="${ROM_DIR:-$HOME/Downloads/roms}"
+
+if [ "$#" -eq 0 ]; then
+  echo "uso: rom-remote [-p plataforma] \"nome do jogo\""
+  exit 1
+fi
+
+ARGS=""
+for a in "$@"; do
+  ARGS="$ARGS $(printf '%q' "$a")"
+done
+
+SSH_TTY=""
+[ -t 0 ] && SSH_TTY="-t"
+
+echo "→ rodando no worker ($HOST)…"
+# shellcheck disable=SC2086
+ssh $SSH_TTY "$HOST" "~/bin/rom$ARGS"
+
+echo "← sincronizando $HOST:$REMOTE_DIR → $LOCAL_DIR"
+mkdir -p "$LOCAL_DIR"
+rsync -az --ignore-existing "$HOST:$REMOTE_DIR/" "$LOCAL_DIR/" && echo "✔ sincronizado"
