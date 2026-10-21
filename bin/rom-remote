@@ -7,7 +7,7 @@
 set -euo pipefail
 
 HOST="${ROM_REMOTE_HOST:-mac}"
-REMOTE_DIR="${ROM_REMOTE_DIR:-/Users/sostenesapollo/Downloads/roms}"
+REMOTE_DIR="${ROM_REMOTE_DIR:-$HOME/Downloads/roms}"
 LOCAL_DIR="${ROM_DIR:-$HOME/Downloads/roms}"
 
 if [ "$#" -eq 0 ]; then
