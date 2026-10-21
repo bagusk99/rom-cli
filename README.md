@@ -67,8 +67,10 @@ Os arquivos vão para `~/Downloads/roms/<plataforma>/`.
 - **Switch**: índice do dlarchive (`files_api.php`). A página do nsp-roms embute
   links com token que expira; aqui o `rom` resolve pelo índice e pega uma URL
   direta e sem token. Funciona também pra NDS, GBA, SNES e PC.
-- **Ports de Switch**: homebrew/ports pra Switch (GTA, Halo, Twilight Princess etc.)
-  saem com tipo `Port` e ficam na plataforma `switchports`.
+- **Ports de Switch**: a plataforma `switchports` junta duas fontes — o catálogo
+  do dlarchive e um scan do Archive.org (`switch port` / `homebrew port` / `nsp`+`port`),
+  com cache de 7 dias. São ~35 ports (GTA, Halo, Simpsons Hit & Run, SM64 NX,
+  Twilight Princess, Cave Story, Pizza Tower, Max Payne, Hello Neighbor, Diablo...).
 - **PS3 e PS Vita**: NoPayStation — baixa `.pkg` direto do CDN da Sony
   (`zeus.dl.playstation.net`), sem token.
 - **PS2, PS1 e PSP**: RomsGames (busca + POST que devolve o arquivo).

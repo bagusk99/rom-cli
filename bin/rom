@@ -482,6 +482,94 @@ class ArchiveOrg:
         "saturn": ("Saturn", ["cue", "bin", "chd", "zip"]), "arcade": ("Arcade", ["zip"]),
     }
     skip = ("_files.xml", "_meta.xml", "_meta.sqlite", "_archive.torrent", ".torrent")
+    port_queries = (
+        'title:("switch port") AND mediatype:software',
+        'title:("homebrew port") AND mediatype:software',
+        'title:(nsp) AND (port OR homebrew) AND mediatype:software',
+        'title:("nintendo switch") AND (port OR homebrew) AND mediatype:software',
+    )
+    port_exts = ["nsp", "xci", "nsz", "zip", "7z", "rar"]
+
+    def switch_ports(self, force=False, on_progress=None):
+        global PORTS_CACHE
+        if PORTS_CACHE is not None and not force:
+            return PORTS_CACHE
+        if not force and os.path.exists(PORTS_FILE):
+            try:
+                d = json.load(open(PORTS_FILE))
+                if time.time() - d.get("fetched_at", 0) < PORTS_TTL and d.get("items"):
+                    PORTS_CACHE = d["items"]
+                    return PORTS_CACHE
+            except Exception:
+                pass
+        pair, seen = [], set()
+        for q in self.port_queries:
+            url = (f"{self.base}/advancedsearch.php?q={urllib.parse.quote(q)}"
+                   "&fl%5B%5D=identifier&fl%5B%5D=title&rows=60&output=json")
+            st, _, body = request(url, retries=2)
+            if st != 200:
+                continue
+            try:
+                docs = json.loads(body.decode("utf-8", "replace"))["response"]["docs"]
+            except Exception:
+                continue
+            for doc in docs:
+                ident = doc.get("identifier")
+                if ident and ident not in seen:
+                    seen.add(ident)
+                    pair.append((ident, clean(doc.get("title") or "")))
+        out, state = [], {"done": 0}
+
+        def work(item):
+            ident, title = item
+            try:
+                st, _, body = request(f"{self.base}/metadata/{ident}", retries=2,
+                                      headers={"Accept": "application/json"}, timeout=40)
+                data = json.loads(body.decode("utf-8", "replace")) if st == 200 else {}
+            except Exception:
+                data = {}
+            state["done"] += 1
+            if on_progress:
+                on_progress(state["done"], len(pair))
+            files = [f for f in data.get("files", []) if not f["name"].endswith(self.skip)]
+            for ext in self.port_exts:
+                cands = [f for f in files if f["name"].lower().endswith("." + ext)]
+                if cands:
+                    best = max(cands, key=lambda f: int(f.get("size") or 0))
+                    return {"title": title or pretty_title(best["name"]), "ident": ident,
+                            "size": int(best.get("size") or 0), "file": best["name"],
+                            "nsp": ext in ("nsp", "xci", "nsz")}
+            return None
+
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            for r in pool.map(work, pair):
+                if r:
+                    out.append(r)
+        block = ("theme", "dbi", "installer", "autoloader", "payload", "firmware",
+                 "devkitpro", "source code", "godot", "psvita", "ps vita", " vita",
+                 "3ds", "psp", "wiiu", "wii u")
+        out = [r for r in out if not any(b in r["title"].lower() for b in block)]
+        out.sort(key=lambda x: (not x.get("nsp"), norm(x["title"])))
+        try:
+            os.makedirs(CACHE_DIR, exist_ok=True)
+            tmp = PORTS_FILE + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump({"fetched_at": time.time(), "items": out}, f)
+            os.replace(tmp, PORTS_FILE)
+        except Exception:
+            pass
+        PORTS_CACHE = out
+        return out
+
+    def port_results(self, force=False, on_progress=None):
+        out = []
+        for it in self.switch_ports(force=force, on_progress=on_progress):
+            out.append(Result(self.name, it["title"], PLATFORM_LABELS["switch"],
+                              f"{self.base}/details/{it['ident']}",
+                              human(it["size"]) if it["size"] else "",
+                              meta={"exts": self.port_exts, "ext": "nsp",
+                                    "pk": "switch", "kind": "Port"}))
+        return out
 
     def search(self, query, platform_key=None):
         if platform_key not in self.tags:
@@ -810,6 +898,13 @@ def search(query, platform_key=None, on_progress=None, force=False):
             break
 
     if platform_key == "switchports":
+        try:
+            words = significant(norm(query).split())
+            for r in SOURCES["archive.org"].port_results(force=force):
+                if all(w in norm(r.title) for w in words):
+                    add([r])
+        except Exception:
+            pass
         results = [r for r in results if r.kind == "Port"]
         seen = {(r.source, r.title, r.size) for r in results}
     if platform_key and len(results) < 6 and platform_key in ArchiveOrg.tags:
@@ -1024,6 +1119,9 @@ WIKI_LISTS = {
 }
 POPULAR_FILE = os.path.join(CACHE_DIR, "popular.json")
 POPULAR_TTL = 30 * 86400
+PORTS_FILE = os.path.join(CACHE_DIR, "switchports.json")
+PORTS_TTL = 7 * 86400
+PORTS_CACHE = None
 POPULAR = None
 POPULAR_NORM = None
 LABEL_KEY = {}
@@ -1201,22 +1299,32 @@ KIND_ORDER = {"Base": 0, "": 1, "Port": 1, "Update": 2, "DLC": 3}
 def browse_items(platform_key):
     if platform_key == "switchports":
         items = DLA.all_items("switch", ports_only=True)
-        pk = "switch"
+        try:
+            items += SOURCES["archive.org"].port_results()
+        except Exception:
+            pass
+        seen, uniq = set(), []
+        for r in items:
+            k = norm(r.title)
+            if k and k not in seen:
+                seen.add(k)
+                uniq.append(r)
+        uniq.sort(key=lambda r: norm(r.title))
+        return uniq
+    src_name, arg = PLATFORMS[platform_key]
+    src = SOURCES[src_name]
+    pk = platform_key
+    if hasattr(src, "all_items"):
+        items = src.all_items(arg)
     else:
-        src_name, arg = PLATFORMS[platform_key]
-        src = SOURCES[src_name]
-        pk = platform_key
-        if hasattr(src, "all_items"):
-            items = src.all_items(arg)
-        else:
-            load_popular()
-            titles = (POPULAR or {}).get(pk) or []
-            if not titles:
-                raise RuntimeError(f"{PLATFORM_LABELS.get(pk, pk)}: sem listagem — use a busca")
-            items = [Result("dlpsgame", t, PLATFORM_LABELS.get(pk, pk), "",
-                            meta={"ext": "pkg", "pk": pk, "pop": i, "search_title": t})
-                     for i, t in enumerate(titles)]
-            return items
+        load_popular()
+        titles = (POPULAR or {}).get(pk) or []
+        if not titles:
+            raise RuntimeError(f"{PLATFORM_LABELS.get(pk, pk)}: sem listagem — use a busca")
+        items = [Result("dlpsgame", t, PLATFORM_LABELS.get(pk, pk), "",
+                        meta={"ext": "pkg", "pk": pk, "pop": i, "search_title": t})
+                 for i, t in enumerate(titles)]
+        return items
     load_popular()
     if (POPULAR or {}).get(pk):
         def key(r):
