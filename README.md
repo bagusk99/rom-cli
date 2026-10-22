@@ -4,6 +4,11 @@ Python CLI to find and download ROMs, ISOs and Switch games from the terminal.
 It has an interactive UI (Textual) like `epub-search`, name search, downloads with
 a progress bar, and a folder organised by platform.
 
+> English-language version of the original Portuguese project by
+> [sostenesapollo](https://github.com/sostenesapollo/rom-cli). Thanks to the
+> original author for the base work — this fork translates the interface and
+> docs to English and tracks the upstream fixes.
+
 ## Requirements
 
 - Python 3.8+
