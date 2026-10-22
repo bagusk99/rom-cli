@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Memasang rom CLI: venv dengan Textual + wrapper di ~/bin.
+# Installs the rom CLI: a venv with Textual + wrappers in ~/bin.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -8,15 +8,15 @@ DEST="${PREFIX:-$HOME/bin}"
 VENV="${ROM_VENV:-$HOME/.venvs/rom}"
 PY="${PYTHON:-python3}"
 
-command -v "$PY" >/dev/null || { echo "python3 tidak ditemukan"; exit 1; }
+command -v "$PY" >/dev/null || { echo "python3 not found"; exit 1; }
 mkdir -p "$DEST" "$(dirname "$VENV")"
 
 if [ ! -x "$VENV/bin/python" ]; then
-  echo "membuat venv di ${VENV}"
+  echo "creating venv in ${VENV}"
   "$PY" -m venv "$VENV"
 fi
 
-echo "menginstal textual"
+echo "installing textual"
 "$VENV/bin/pip" install -q --upgrade pip >/dev/null 2>&1 || true
 "$VENV/bin/pip" install -q textual
 
@@ -35,9 +35,9 @@ if [ -f "$SRC/rom-remote" ]; then
   install -m 755 "$SRC/rom-remote" "$DEST/rom-remote"
 fi
 
-echo "terpasang: $DEST/rom (venv: $VENV)"
+echo "installed: $DEST/rom (venv: $VENV)"
 case ":$PATH:" in
   *":$DEST:"*) ;;
-  *) echo "peringatan: tambahkan $DEST ke PATH (mis.: set -Ux fish_user_paths $DEST)";;
+  *) echo "warning: add $DEST to your PATH (e.g. set -Ux fish_user_paths $DEST)";;
 esac
-echo "uji coba: rom -l    |    rom --index"
+echo "test: rom -l    |    rom --index"

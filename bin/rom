@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""rom — cari dan unduh ROM, ISO, serta game Switch lewat terminal.
+"""rom — search and download ROMs, ISOs and Switch games from the terminal.
 
-Penggunaan:
-  rom                          # UI interaktif (Textual)
-  rom "zelda"                  # cari langsung lalu tampilkan menu
-  rom -p switch "mario kart"   # filter berdasarkan platform
-  rom -y -p snes "metroid"     # unduh yang terbaik tanpa bertanya
-  rom --list "metroid"         # hanya daftar, tidak mengunduh
-  rom --print-url -p switch …  # tampilkan tautan langsung lalu keluar
-  rom -l                       # daftar platform
-  rom --refresh                # bangun ulang indeks katalog
+Usage:
+  rom                          # interactive UI (Textual)
+  rom "zelda"                  # search directly and show the menu
+  rom -p switch "mario kart"   # filter by platform
+  rom -y -p snes "metroid"     # download the best match without asking
+  rom --list "metroid"         # list only, no download
+  rom --print-url -p switch …  # print the direct link and exit
+  rom -l                       # list the platforms
+  rom --refresh                # rebuild the catalog index
 """
 
 import argparse
@@ -161,9 +161,9 @@ def kind_of(fn):
     if "[dlc" in low or " dlc" in low or "dlc " in low:
         return "DLC"
     if "[up " in low or "upd" in low or "update" in low or re.search(r"\bv\d+", low):
-        return "Pembaruan"
+        return "Update"
     if "[base]" in low:
-        return "Dasar"
+        return "Base"
     return ""
 
 
@@ -181,7 +181,7 @@ def platform_of(fn, folder):
                        ("gameboy_color", "gbc"), ("gameboy", "gb"), ("sega", "genesis")):
         if token in fl:
             return key, PLATFORM_LABELS.get(key, key.upper())
-    return "", "Lainnya"
+    return "", "Other"
 
 
 def safe_name(name, fallback, ext):
@@ -393,10 +393,10 @@ class DlArchive:
         st, _, body = request(f"{self.api}?action=file-url&id={fid}",
                               headers={"Accept": "application/json"}, timeout=60, retries=3)
         if st != 200:
-            raise RuntimeError(f"server merespons {st}")
+            raise RuntimeError(f"server responded {st}")
         data = json.loads(body.decode("utf-8", "replace"))
         if not data.get("ok") or not data.get("url"):
-            raise RuntimeError(data.get("error") or "tautan tidak tersedia")
+            raise RuntimeError(data.get("error") or "link unavailable")
         return data["url"], result.meta.get("filename") or result.title
 
 
@@ -439,12 +439,12 @@ class RomsGames:
     def resolve(self, result):
         st, _, body = request(result.page, retries=2)
         if st != 200:
-            raise RuntimeError(f"halaman tidak tersedia ({st})")
+            raise RuntimeError(f"page unavailable ({st})")
         page = body.decode("utf-8", "replace")
         action = re.search(r'<form[^>]*id="download-form"[^>]*action="([^"]+)"', page)
         media = re.search(r'data-media-id="(\d+)"', page)
         if not action or not media:
-            raise RuntimeError("tombol unduh tidak ditemukan")
+            raise RuntimeError("download button not found")
         form = urllib.parse.urljoin(self.base, action.group(1))
         st, _, body = request(form + "?download",
                               data=f"mediaId={media.group(1)}&g-recaptcha-response=".encode(),
@@ -452,14 +452,14 @@ class RomsGames:
                                        "Content-Type": "application/x-www-form-urlencoded",
                                        "Referer": result.page}, retries=3)
         if st != 200:
-            raise RuntimeError(f"server unduh merespons {st}")
+            raise RuntimeError(f"download server responded {st}")
         try:
             data = json.loads(body.decode("utf-8", "replace"))
         except Exception:
-            raise RuntimeError("respons unduh tidak valid")
+            raise RuntimeError("invalid download response")
         url = data.get("downloadUrl")
         if not url:
-            raise RuntimeError("tautan unduh tidak ada")
+            raise RuntimeError("download link missing")
         return url, urllib.parse.unquote(data.get("downloadName") or "")
 
 
@@ -599,11 +599,11 @@ class ArchiveOrg:
         st, _, body = request(f"{self.base}/metadata/{ident}", retries=2,
                               headers={"Accept": "application/json"})
         if st != 200:
-            raise RuntimeError(f"item tidak tersedia ({st})")
+            raise RuntimeError(f"item unavailable ({st})")
         data = json.loads(body.decode("utf-8", "replace"))
         files = [f for f in data.get("files", []) if not f["name"].endswith(self.skip)]
         if not files:
-            raise RuntimeError("item tanpa berkas yang bisa diunduh")
+            raise RuntimeError("item has no downloadable file")
         for ext in result.meta.get("exts", []):
             matches = [f for f in files if f["name"].lower().endswith("." + ext)]
             if matches:
@@ -615,7 +615,7 @@ class ArchiveOrg:
         if loose:
             best = max(loose, key=lambda f: int(f.get("size") or 0))
             return f"{self.base}/download/{ident}/{urllib.parse.quote(best['name'])}", best["name"]
-        raise RuntimeError("tidak ada format yang cocok di item")
+        raise RuntimeError("no compatible format in the item")
 
 
 class NoPayStation:
@@ -755,7 +755,7 @@ class DlpsGame:
     def resolve(self, result):
         links = result.meta.get("links") or self.links(result.page)
         if not links:
-            raise RuntimeError(f"tanpa tautan di artikel — buka {result.page}")
+            raise RuntimeError(f"no links in the post — open {result.page}")
         order = []
         for host in ("mediafire", "google", "1fichier", "gofile", "akirabox",
                      "vikingfile", "rootz", "1cloudfile", "ranoz", "mega"):
@@ -774,11 +774,11 @@ class DlpsGame:
                     if d:
                         return d, urllib.parse.unquote(os.path.basename(
                             urllib.parse.urlparse(d).path)) or ""
-                    errors.append("1fichier tanpa slot gratis")
+                    errors.append("1fichier has no free slot")
             except Exception as e:
                 errors.append(f"{u.split('/')[2]}: {e}")
-        raise RuntimeError("unduhan langsung tidak tersedia (" + "; ".join(errors or ["host JS"])
-                           + ") — tautan: " + " ".join(order[:4]))
+        raise RuntimeError("direct download unavailable (" + "; ".join(errors or ["host JS"])
+                           + ") — links: " + " ".join(order[:4]))
 
     def _mediafire(self, u):
         m = re.search(r"/file/[^/]+/([^/]+)", u)
@@ -787,13 +787,13 @@ class DlpsGame:
         d = re.search(r'href="(https://download[^"]+\.mediafire\.com/[^"]+)"',
                       body.decode("utf-8", "replace"))
         if not d:
-            raise RuntimeError("tautan mediafire tidak ditemukan")
+            raise RuntimeError("mediafire link not found")
         return d.group(1), name
 
     def _gdrive(self, u):
         m = re.search(r"/(?:file/d/|id=)([A-Za-z0-9_-]{20,})", u)
         if not m:
-            raise RuntimeError("id drive tidak ditemukan")
+            raise RuntimeError("drive id not found")
         return (f"https://drive.usercontent.google.com/download?id={m.group(1)}"
                 "&export=download&confirm=t")
 
@@ -834,9 +834,9 @@ def rank(results, query):
         pop = r.meta.get("pop")
         if pop is not None:
             s += min(12, max(2, 14 - pop))
-        if r.kind == "Dasar":
+        if r.kind == "Base":
             s += 3
-        elif r.kind in ("Pembaruan", "DLC"):
+        elif r.kind in ("Update", "DLC"):
             s -= 3
         if r.source == "archive.org":
             s -= 8
@@ -926,7 +926,7 @@ def fmt_row(r, i):
 
 def show(results, limit=15):
     write()
-    write(f"  {'#':>2}  {'platform':<11} {'tipe':<6} {'ukuran':>9}  judul")
+    write(f"  {'#':>2}  {'platform':<11} {'type':<6} {'size':>9}  title")
     write("  " + "-" * 80)
     for i, r in enumerate(results[:limit], 1):
         write("  " + fmt_row(r, i))
@@ -947,7 +947,7 @@ def select_menu(results, limit=15):
         while True:
             if n_lines:
                 sys.stdout.write(f"\033[{n_lines}A")
-            lines = [f"  ↑↓ pindah · spasi tandai · Enter unduh · q batal — {len(items)} ditemukan"]
+            lines = [f"  ↑↓ move · space mark · Enter download · q cancel — {len(items)} found"]
             for i, r in enumerate(items):
                 mark = "❯" if i == idx else " "
                 line = f"  {mark} {'✔' if i in chosen else ' '} {fmt_row(r, i + 1)}"
@@ -1046,18 +1046,18 @@ def fix_magic_ext(path):
 
 def download(result, outdir, on_progress=None):
     if on_progress:
-        on_progress(0, 0, f"mencari: {result.title[:45]}…")
+        on_progress(0, 0, f"looking for: {result.title[:45]}…")
     if result.meta.get("search_title"):
         found = DLP.search(result.meta["search_title"], result.meta.get("pk"))
         if not found:
-            raise RuntimeError(f"tidak menemukan '{result.title}' di dlpsgame")
+            raise RuntimeError(f"could not find '{result.title}' on dlpsgame")
         result = found[0]
     src = SOURCES[result.source]
     if on_progress:
-        on_progress(0, 0, f"mengambil tautan: {result.title[:45]}…")
+        on_progress(0, 0, f"getting link: {result.title[:45]}…")
     url, name = src.resolve(result)
     ext = ext_for(result, name, url)
-    folder = os.path.join(outdir, re.sub(r'[\\/:*?"<>|]', "", result.platform or "lainnya"))
+    folder = os.path.join(outdir, re.sub(r'[\\/:*?"<>|]', "", result.platform or "outros"))
     os.makedirs(folder, exist_ok=True)
     path = unique_path(os.path.join(folder, safe_name(name or result.title, "rom", ext)))
     start = time.time()
@@ -1077,7 +1077,7 @@ def download(result, outdir, on_progress=None):
             os.remove(path)
         except OSError:
             pass
-        raise RuntimeError("berkas tidak valid (tautan kedaluwarsa?)")
+        raise RuntimeError("invalid file (expired link?)")
     return path
 
 
@@ -1089,13 +1089,13 @@ def run_cli_download(picked, outdir):
         try:
             path = download(r, outdir, on_progress=lambda a, b, m: status(f"   {m}"))
             clear_status()
-            write(f"  ✔ selesai: {path}  ({human(os.path.getsize(path))})")
+            write(f"  ✔ done: {path}  ({human(os.path.getsize(path))})")
             ok += 1
         except Exception as e:
             clear_status()
-            write(f"  ✖ gagal: {e}")
+            write(f"  ✖ failed: {e}")
     write()
-    write(f"  {ok}/{len(picked)} terunduh di {outdir}")
+    write(f"  {ok}/{len(picked)} downloaded to {outdir}")
     return 0 if ok else 1
 
 
@@ -1295,7 +1295,7 @@ def annotate_popular(results):
     return results
 
 
-KIND_ORDER = {"Dasar": 0, "": 1, "Port": 1, "Pembaruan": 2, "DLC": 3}
+KIND_ORDER = {"Base": 0, "": 1, "Port": 1, "Update": 2, "DLC": 3}
 
 
 def browse_items(platform_key):
@@ -1322,7 +1322,7 @@ def browse_items(platform_key):
         load_popular()
         titles = (POPULAR or {}).get(pk) or []
         if not titles:
-            raise RuntimeError(f"{PLATFORM_LABELS.get(pk, pk)}: tidak ada daftar — gunakan pencarian")
+            raise RuntimeError(f"{PLATFORM_LABELS.get(pk, pk)}: no listing — use the search")
         items = [Result("dlpsgame", t, PLATFORM_LABELS.get(pk, pk), "",
                         meta={"ext": "pkg", "pk": pk, "pop": i, "search_title": t})
                  for i, t in enumerate(titles)]
@@ -1361,9 +1361,9 @@ def run_tui(platform_key="", query="", outdir=None, force=False):
         #opts-list { height: auto; }
         #opts-hint { text-style: dim italic; margin-top: 1; }
         """
-        BINDINGS = [Binding("escape", "cancel", "Tutup"),
-                    Binding("ctrl+b", "cancel", "Tutup", show=False),
-                    Binding("q", "cancel", "Tutup", show=False)]
+        BINDINGS = [Binding("escape", "cancel", "Close"),
+                    Binding("ctrl+b", "cancel", "Close", show=False),
+                    Binding("q", "cancel", "Close", show=False)]
 
         def __init__(self, options):
             super().__init__()
@@ -1371,9 +1371,9 @@ def run_tui(platform_key="", query="", outdir=None, force=False):
 
         def compose(self) -> ComposeResult:
             with Vertical(id="opts"):
-                yield Static("Opsi", id="opts-title")
+                yield Static("Options", id="opts-title")
                 yield OptionList(*[Option(o[0], id=o[1]) for o in self.options], id="opts-list")
-                yield Static("↑↓ pindah · Enter pilih · esc tutup", id="opts-hint")
+                yield Static("↑↓ move · Enter select · esc close", id="opts-hint")
 
         def on_option_list_option_selected(self, event):
             self.dismiss(event.option_id)
@@ -1387,7 +1387,7 @@ def run_tui(platform_key="", query="", outdir=None, force=False):
                 yield Static("Platform", id="opts-title")
                 opts = [("todas", "all")] + [(PLATFORM_LABELS[k], k) for k in sorted(PLATFORM_LABELS)]
                 yield OptionList(*[Option(t, id=i) for t, i in opts], id="opts-list")
-                yield Static("↑↓ pindah · Enter pilih · esc tutup", id="opts-hint")
+                yield Static("↑↓ move · Enter choose · esc close", id="opts-hint")
 
     class RomApp(App):
         TITLE = "rom"
@@ -1398,15 +1398,15 @@ def run_tui(platform_key="", query="", outdir=None, force=False):
         DataTable { height: 1fr; }
         """
         BINDINGS = [
-            ("q", "quit", "Keluar"),
-            ("d", "download", "Unduh"),
-            ("space", "toggle", "Tandai"),
+            ("q", "quit", "Quit"),
+            ("d", "download", "Download"),
+            ("space", "toggle", "Select"),
             ("p", "platform", "Platform"),
-            ("n", "next_page", "Halaman+"),
-            ("b", "prev_page", "Halaman-"),
-            ("ctrl+b", "palette", "Opsi"),
-            ("ctrl+a", "select_all", "Tandai semua"),
-            ("ctrl+n", "select_none", "Bersihkan"),
+            ("n", "next_page", "Page+"),
+            ("b", "prev_page", "Page-"),
+            ("ctrl+b", "palette", "Options"),
+            ("ctrl+a", "select_all", "Select all"),
+            ("ctrl+n", "select_none", "Clear"),
         ]
 
         def __init__(self, platform_key, query, outdir, force):
@@ -1423,14 +1423,14 @@ def run_tui(platform_key="", query="", outdir=None, force=False):
 
         def compose(self) -> ComposeResult:
             yield Header(show_clock=True)
-            yield Input(placeholder="Ketik nama game lalu Enter…  (p ganti platform)")
+            yield Input(placeholder="Type the game name and press Enter…  (p switches platform)")
             yield DataTable(cursor_type="row")
             yield Footer()
             yield Static("", id="status")
 
         def on_mount(self):
             table = self.query_one(DataTable)
-            table.add_columns(" ", "Judul", "Platform", "Tipe", "Ukuran", "Sumber")
+            table.add_columns(" ", "Title", "Platform", "Type", "Size", "Source")
             self.col_keys = list(table.columns.keys())
             self._busy = None
             self._frame = 0
@@ -1454,8 +1454,8 @@ def run_tui(platform_key="", query="", outdir=None, force=False):
 
         def _hint(self):
             plat = PLATFORM_LABELS.get(self.pk, "todas") if self.pk else "todas"
-            return (f"platform: {plat} · spasi tandai · d unduh · p pindah/ganti · "
-                    f"n/b halaman · ctrl+b opsi · q keluar")
+            return (f"platform: {plat} · space mark · d download · p browse/switch · "
+                    f"n/b page · ctrl+b options · q quit")
 
         def _set_status(self, msg):
             self._busy = None
@@ -1472,20 +1472,20 @@ def run_tui(platform_key="", query="", outdir=None, force=False):
         def _start_search(self, q):
             self.last_query = q
             self.selected.clear()
-            self._busy = f"mencari '{q}'…"
-            self.query_one(Static).update(f"⠋ mencari '{q}'…")
+            self._busy = f"searching for '{q}'…"
+            self.query_one(Static).update(f"⠋ searching for '{q}'…")
             threading.Thread(target=self._search_bg, args=(q,), daemon=True).start()
 
         def _search_bg(self, q):
             try:
                 results = search(
                     q, self.pk or None,
-                    on_progress=lambda d, t: self._busy_msg(f"membangun indeks katalog… {d}/{t}"),
+                    on_progress=lambda d, t: self._busy_msg(f"building the catalog index… {d}/{t}"),
                     force=self.force)
                 self.force = False
                 self.call_from_thread(self._show, rank(results, q))
             except Exception as e:
-                self.call_from_thread(self._set_status, f"✖ gagal mencari: {e}")
+                self.call_from_thread(self._set_status, f"✖ search error: {e}")
 
         def _show(self, results):
             self.browse_items = None
@@ -1495,13 +1495,13 @@ def run_tui(platform_key="", query="", outdir=None, force=False):
             for i, r in enumerate(results[:200]):
                 table.add_row(*self._cells(i, r), key=str(i))
             table.focus()
-            msg = f"{len(results)} hasil" if results else "tidak ditemukan"
+            msg = f"{len(results)} results" if results else "nothing found"
             self._set_status(f"{msg} — {self._hint()}")
 
         def _start_browse(self, pk):
             self.last_query = ""
             self.selected.clear()
-            self._busy = f"membuka {PLATFORM_LABELS.get(pk, pk)}…"
+            self._busy = f"opening {PLATFORM_LABELS.get(pk, pk)}…"
             self.query_one(Static).update(f"⠋ {self._busy}")
             threading.Thread(target=self._browse_bg, args=(pk,), daemon=True).start()
 
@@ -1530,8 +1530,8 @@ def run_tui(platform_key="", query="", outdir=None, force=False):
                 table.add_row(*self._cells(i, r), key=str(i))
             table.focus()
             plat = PLATFORM_LABELS.get(self.pk, self.pk or "todas")
-            self._set_status(f"{plat} · {len(items)} item · halaman {self.page + 1}/{pages}"
-                             " — n/b halaman · spasi tandai · d unduh · q keluar")
+            self._set_status(f"{plat} · {len(items)} items · page {self.page + 1}/{pages}"
+                             " — n/b page · space mark · d download · q quit")
 
         def action_next_page(self):
             if self.browse_items is None:
@@ -1566,9 +1566,9 @@ def run_tui(platform_key="", query="", outdir=None, force=False):
 
         def _status_sel(self):
             n = len(self.selected)
-            msg = f"{len(self.results)} hasil"
+            msg = f"{len(self.results)} results"
             if n:
-                msg += f" · ✔ {n} dipilih"
+                msg += f" · ✔ {n} selected"
             self._set_status(msg + " — " + self._hint())
 
         def action_toggle(self):
@@ -1603,18 +1603,18 @@ def run_tui(platform_key="", query="", outdir=None, force=False):
                 elif self.pk:
                     self._start_browse(self.pk)
                 else:
-                    self._set_status("platform: semua — ketik nama lalu Enter")
+                    self._set_status("platform: all — type a name and press Enter")
             self.push_screen(PlataformasScreen([]), callback=chosen)
 
         def action_palette(self):
             self.push_screen(
                 OptionsScreen([
-                    ("Unduh yang dipilih", "sel"),
-                    ("Unduh yang disorot", "cur"),
-                    ("Telusuri platform ini", "browse"),
-                    ("Ganti platform", "plat"),
-                    ("Tandai semua", "all"),
-                    ("Bersihkan pilihan", "none"),
+                    ("Download selected", "sel"),
+                    ("Download current", "cur"),
+                    ("Browse this platform", "browse"),
+                    ("Switch platform", "plat"),
+                    ("Select all", "all"),
+                    ("Clear selection", "none"),
                 ]),
                 callback=self._palette,
             )
@@ -1653,9 +1653,9 @@ def run_tui(platform_key="", query="", outdir=None, force=False):
 
         def _batch(self, rows):
             if not rows:
-                self._set_status("tidak ada yang dipilih")
+                self._set_status("nothing selected")
                 return
-            self._set_status(f"mengunduh 0/{len(rows)}…")
+            self._set_status(f"downloading 0/{len(rows)}…")
             threading.Thread(target=self._batch_bg, args=(rows,), daemon=True).start()
 
         def _batch_bg(self, rows):
@@ -1664,7 +1664,7 @@ def run_tui(platform_key="", query="", outdir=None, force=False):
                 label = f"{n}/{total} {r.title[:38]}"
 
                 def prog(read, tot, msg, label=label):
-                    self.call_from_thread(self._set_status, f"mengunduh {label} · {msg}")
+                    self.call_from_thread(self._set_status, f"downloading {label} · {msg}")
                 try:
                     path = download(r, self.outdir, on_progress=prog)
                     ok += 1
@@ -1673,51 +1673,51 @@ def run_tui(platform_key="", query="", outdir=None, force=False):
                     fail += 1
                     self.call_from_thread(self._set_status, f"✖ {r.title[:40]}: {e}")
             self.call_from_thread(self._set_status,
-                                  f"✔ {ok}/{total} terunduh di {self.outdir}"
-                                  + (f" · {fail} gagal" if fail else ""))
+                                  f"✔ {ok}/{total} downloaded to {self.outdir}"
+                                  + (f" · {fail} failed" if fail else ""))
 
     RomApp(platform_key, query, outdir, force).run()
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Cari dan unduh ROM/ISO/game Switch.")
+    ap = argparse.ArgumentParser(description="Search and download ROMs/ISOs/Switch games.")
     ap.add_argument("query", nargs="*")
-    ap.add_argument("-p", "--platform", help="switch, snes, gba, ps2, nds, wii… (lihat -l)")
-    ap.add_argument("-l", "--platforms", action="store_true", help="daftar platform")
-    ap.add_argument("-y", "--yes", action="store_true", help="unduh yang terbaik tanpa bertanya")
-    ap.add_argument("--list", action="store_true", help="hanya daftar hasil")
-    ap.add_argument("--print-url", action="store_true", help="tampilkan tautan langsung lalu keluar")
-    ap.add_argument("--refresh", action="store_true", help="bangun ulang indeks katalog")
-    ap.add_argument("--index", action="store_true", help="unduh/tampilkan indeks lalu keluar")
-    ap.add_argument("-n", "--number", type=int, default=15, help="jumlah hasil yang ditampilkan")
-    ap.add_argument("-o", "--out", default=OUT_DIR, help="folder tujuan")
+    ap.add_argument("-p", "--platform", help="switch, snes, gba, ps2, nds, wii… (see -l)")
+    ap.add_argument("-l", "--platforms", action="store_true", help="list platforms")
+    ap.add_argument("-y", "--yes", action="store_true", help="download the best match without asking")
+    ap.add_argument("--list", action="store_true", help="list results only")
+    ap.add_argument("--print-url", action="store_true", help="print the direct link and exit")
+    ap.add_argument("--refresh", action="store_true", help="rebuild the catalog index")
+    ap.add_argument("--index", action="store_true", help="download/print the index and exit")
+    ap.add_argument("-n", "--number", type=int, default=15, help="how many results to show")
+    ap.add_argument("-o", "--out", default=OUT_DIR, help="destination folder")
     args = ap.parse_args()
 
     if args.platforms:
-        write("  platform: " + ", ".join(sorted(PLATFORMS)))
+        write("  platforms: " + ", ".join(sorted(PLATFORMS)))
         return 0
 
     key = (args.platform or "").lower().strip()
     if key and key not in PLATFORMS:
-        ap.error(f"platform tidak dikenal: {key}\n  gunakan: {', '.join(sorted(PLATFORMS))}")
+        ap.error(f"unknown platform: {key}\n  use: {', '.join(sorted(PLATFORMS))}")
 
     if args.index:
-        write("  membangun indeks…")
+        write("  building index…")
         idx = DLA.load_index(force=args.refresh,
-                             on_progress=lambda d, t: status(f"   {d}/{t} halaman"))
+                             on_progress=lambda d, t: status(f"   {d}/{t} pages"))
         clear_status()
         with_rom = sum(1 for e in idx if e["ext"] in ("nsp", "xci", "nsz"))
-        write(f"  {len(idx)} berkas di indeks ({with_rom} untuk Switch)")
+        write(f"  {len(idx)} files in the index ({with_rom} for Switch)")
         write(f"  cache: {INDEX_FILE}")
         pop = load_popular(force=args.refresh)
         top = ", ".join(f"{k}({len(v)})" for k, v in sorted(pop.items()) if v)
-        write(f"  terlaris (Wikipedia): {top}")
+        write(f"  best sellers (Wikipedia): {top}")
         return 0
 
     if not args.query:
         if args.list:
             if not key:
-                write("  gunakan -p <platform> (contoh: rom -p switch --list)  ·  atau rom -l")
+                write("  use -p <platform> (e.g. rom -p switch --list)  ·  or rom -l")
                 return 1
             try:
                 items = browse_items(key)
@@ -1725,11 +1725,11 @@ def main():
                 write(f"  ✖ {e}")
                 return 1
             show(items, args.number)
-            write(f"  {len(items)} item di katalog {PLATFORM_LABELS.get(key, key)}"
-                  " — TUI (rom) menelusuri semuanya")
+            write(f"  {len(items)} items in the {PLATFORM_LABELS.get(key, key)} catalog"
+                  " — the TUI (rom) browses everything")
             return 0
         if not sys.stdin.isatty() or not _has_textual():
-            write("  ketik: rom -p switch \"nama game\"   (atau rom -l)")
+            write("  type: rom -p switch \"game name\"   (or rom -l)")
             return 0
 
     query = " ".join(args.query)
@@ -1738,19 +1738,19 @@ def main():
         run_tui(key, "", args.out, args.refresh)
         return 0
 
-    status(f"mencari '{query}'…")
+    status(f"searching for '{query}'…")
     try:
         results = search(query, key or None,
-                         on_progress=lambda d, t: status(f"   indeks {d}/{t} halaman"),
+                         on_progress=lambda d, t: status(f"   index {d}/{t} pages"),
                          force=args.refresh)
     except Exception as e:
         clear_status()
-        write(f"  ✖ gagal mencari: {e}")
+        write(f"  ✖ search failed: {e}")
         return 1
     clear_status()
 
     if not results:
-        write("  ✖ tidak ditemukan. Coba nama lain atau platform lain.")
+        write("  ✖ nothing found. Try a different name or platform.")
         return 1
 
     results = rank(results, query)
@@ -1771,7 +1771,7 @@ def main():
                     url, name = SOURCES[r.source].resolve(r)
                     write(f"  {url}")
                 except Exception as e:
-                    write(f"  (erro: {e})")
+                    write(f"  (error: {e})")
             write()
         return 0
 
@@ -1781,7 +1781,7 @@ def main():
 
     picked = select_menu(results, args.number)
     if not picked:
-        write("  dibatalkan.")
+        write("  cancelled.")
         return 0
     return run_cli_download(picked, outdir)
 
@@ -1799,5 +1799,5 @@ if __name__ == "__main__":
         sys.exit(main())
     except KeyboardInterrupt:
         clear_status()
-        write("\n  dibatalkan.")
+        write("\n  cancelled.")
         sys.exit(130)
