@@ -1,16 +1,16 @@
 # rom
 
-CLI em Python pra achar e baixar ROMs, ISOs e jogos de Switch pelo terminal.
-Tem UI interativa (Textual) igual ao `epub-search`, busca por nome, download com
-barra de progresso e pasta organizada por plataforma.
+CLI Python untuk mencari dan mengunduh ROM, ISO, serta game Switch lewat terminal.
+Punya UI interaktif (Textual) seperti `epub-search`, pencarian berdasarkan nama,
+unduhan dengan bar progres, dan folder yang tersusun per platform.
 
-## Requisitos
+## Kebutuhan
 
 - Python 3.8+
-- macOS ou Linux
-- `textual` (o `install.sh` instala num venv próprio)
+- macOS atau Linux
+- `textual` (`install.sh` memasangnya di venv khusus)
 
-## Instalação
+## Pemasangan
 
 ```bash
 git clone git@github.com:sostenesapollo/rom-cli.git
@@ -18,89 +18,90 @@ cd rom-cli
 ./install.sh
 ```
 
-Cria o venv em `~/.venvs/rom`, instala o `textual` e publica `rom` (e `rom-remote`)
-em `~/bin`. Use `PREFIX=/usr/local ./install.sh` pra outro destino.
+Membuat venv di `~/.venvs/rom`, memasang `textual`, lalu memublish `rom` (dan
+`rom-remote`) ke `~/bin`. Pakai `PREFIX=/usr/local ./install.sh` untuk lokasi lain.
 
-## Uso
+## Penggunaan
 
 ```bash
-rom                          # abre o seletor de plataforma e navega
-rom -p switch                # já abre navegando o catálogo de Switch
-rom -p switchports           # só os ports/homebrew de Switch
-rom "metroid"                # busca em todas as fontes
-rom -y -p gba "pokemon"      # baixa o melhor sem perguntar
-rom --list "metroid"         # só lista, não baixa
-rom --print-url -p switch …  # mostra o link direto (aria2/curl)
-rom -l                       # lista as plataformas
-rom --index                  # monta/mostra o índice do catálogo
-rom --refresh                # reconstrói o índice (ignora cache)
+rom                          # membuka pemilih platform lalu menelusuri
+rom -p switch                # langsung membuka katalog Switch
+rom -p switchports           # hanya port/homebrew Switch
+rom "metroid"                # mencari di semua sumber
+rom -y -p gba "pokemon"      # mengunduh yang terbaik tanpa bertanya
+rom --list "metroid"         # hanya daftar, tidak mengunduh
+rom --print-url -p switch …  # menampilkan tautan langsung (aria2/curl)
+rom -l                       # daftar platform
+rom --index                  # membuat/menampilkan indeks katalog
+rom --refresh                # membangun ulang indeks (abaikan cache)
 ```
 
-Sem query o `rom` abre o **seletor de plataforma**; escolhendo uma, ele lista o
-catálogo inteiro daquela plataforma (páginas de 300, `n`/`b` pra andar) — dá pra
-navegar sem digitar nada. Digitar no campo e `Enter` volta a buscar.
+Tanpa query, `rom` membuka **pemilih platform**; setelah memilih satu, seluruh
+katalog platform itu ditampilkan (halaman berisi 300 item, `n`/`b` untuk pindah)
+— jadi bisa menelusuri tanpa mengetik apa pun. Mengetik di kolom pencarian lalu
+`Enter` kembali ke mode cari.
 
-Na UI: `↑↓` navega, `espaço` marca, `d` baixa (marcados ou o atual), `p` troca de
-plataforma, `n`/`b` página, `ctrl+b` paleta de opções, `ctrl+a` marca tudo, `ctrl+n`
-limpa, `q` sai.
+Di UI: `↑↓` navigasi, `spasi` tandai, `d` unduh (yang ditandai atau yang disorot),
+`p` ganti platform, `n`/`b` halaman, `ctrl+b` palet opsi, `ctrl+a` tandai semua,
+`ctrl+n` bersihkan, `q` keluar.
 
-| Flag | Descrição |
-|------|-----------|
-| `-p, --platform` | plataforma (switch, snes, gba, ps2, nds, wii…) |
-| `-y, --yes` | baixa o melhor sem menu |
-| `--list` | apenas lista |
-| `--print-url` | só resolve e imprime o link direto |
-| `--refresh` | reconstrói o índice do catálogo |
-| `--index` | baixa/mostra o índice e sai |
-| `-n, --number` | quantos resultados mostrar (padrão 15) |
-| `-o, --out` | pasta de destino (padrão `~/Downloads/roms` ou `$ROM_DIR`) |
-| `-l, --platforms` | lista plataformas |
+| Flag | Keterangan |
+|------|------------|
+| `-p, --platform` | platform (switch, snes, gba, ps2, nds, wii…) |
+| `-y, --yes` | unduh yang terbaik tanpa menu |
+| `--list` | hanya daftar |
+| `--print-url` | hanya mencari dan mencetak tautan langsung |
+| `--refresh` | membangun ulang indeks katalog |
+| `--index` | mengunduh/menampilkan indeks lalu keluar |
+| `-n, --number` | jumlah hasil yang ditampilkan (bawaan 15) |
+| `-o, --out` | folder tujuan (bawaan `~/Downloads/roms` atau `$ROM_DIR`) |
+| `-l, --platforms` | daftar platform |
 
-Plataformas: `switch`, `switchports`, `ps5`, `ps4`, `ps3`, `psv`, `ps2`, `ps1`,
+Platform: `switch`, `switchports`, `ps5`, `ps4`, `ps3`, `psv`, `ps2`, `ps1`,
 `psp`, `nds`, `gba`, `snes`, `pc`, `nes`, `gb`, `gbc`, `n64`, `3ds`, `gc`, `wii`,
 `genesis`, `mastersystem`, `dreamcast`, `saturn`, `arcade`.
 
-Os arquivos vão para `~/Downloads/roms/<plataforma>/`.
+Berkas disimpan ke `~/Downloads/roms/<platform>/`.
 
-## Como funciona
+## Cara kerjanya
 
-- **Switch**: índice do dlarchive (`files_api.php`). A página do nsp-roms embute
-  links com token que expira; aqui o `rom` resolve pelo índice e pega uma URL
-  direta e sem token. Funciona também pra NDS, GBA, SNES e PC.
-- **Ports de Switch**: a plataforma `switchports` junta duas fontes — o catálogo
-  do dlarchive e um scan do Archive.org (`switch port` / `homebrew port` / `nsp`+`port`),
-  com cache de 7 dias. São ~35 ports (GTA, Halo, Simpsons Hit & Run, SM64 NX,
+- **Switch**: indeks dari dlarchive (`files_api.php`). Halaman nsp-roms memuat
+  tautan dengan token yang kedaluwarsa; di sini `rom` menyelesaikan lewat indeks
+  dan mengambil URL langsung tanpa token. Berlaku juga untuk NDS, GBA, SNES, dan PC.
+- **Port Switch**: platform `switchports` menggabungkan dua sumber — katalog
+  dlarchive dan pemindaian Archive.org (`switch port` / `homebrew port` / `nsp`+`port`),
+  dengan cache 7 hari. Ada ~35 port (GTA, Halo, Simpsons Hit & Run, SM64 NX,
   Twilight Princess, Cave Story, Pizza Tower, Max Payne, Hello Neighbor, Diablo...).
-- **PS3 e PS Vita**: NoPayStation — baixa `.pkg` direto do CDN da Sony
-  (`zeus.dl.playstation.net`), sem token.
-- **PS2, PS1 e PSP**: RomsGames (busca + POST que devolve o arquivo).
-- **PS4 e PS5**: dlpsgame (busca via WP REST). O download direto sai quando o
-  post tem link de host suportado (mediafire, Google Drive, 1fichier); quando
-  não tem, o `rom` mostra a página pra pegar o link.
-- **Melhores primeiro**: ao navegar uma plataforma, os mais vendidos (listas da
-  Wikipedia, cache de 30 dias) aparecem primeiro com ★; o resto em ordem alfabética.
-  Plataformas sem listagem completa (PS4/PS5) navegam pela própria lista de melhores.
-- **Fallback**: Archive.org nas plataformas com pouca oferta.
-- Índice do catálogo em cache (`~/.cache/rom-cli/dlarchive.json`, TTL 12h) —
-  deixa a busca instantânea. `--refresh` reconstrói.
-- Ranking por correspondência de título, penalidade pra hacks/traduções/betas e
-  preferência por `Base` sobre `Update`/`DLC`.
-- Valida o arquivo antes de gravar (zip, 7z, `PFS0` de `.nsp` e `PKG`/`CNT` de
-  `.pkg`).
-- Download com retomada (`.part` + `Range`).
+- **PS3 dan PS Vita**: NoPayStation — mengunduh `.pkg` langsung dari CDN Sony
+  (`zeus.dl.playstation.net`), tanpa token.
+- **PS2, PS1, dan PSP**: RomsGames (pencarian + POST yang mengembalikan berkas).
+- **PS4 dan PS5**: dlpsgame (pencarian lewat WP REST). Unduhan langsung tersedia
+  bila artikel punya tautan host yang didukung (mediafire, Google Drive, 1fichier);
+  bila tidak, `rom` menampilkan halaman untuk mengambil tautannya.
+- **Terlaris lebih dulu**: saat menelusuri sebuah platform, judul paling laris
+  (daftar Wikipedia, cache 30 hari) tampil pertama dengan ★; sisanya urutan abis.
+  Platform tanpa daftar lengkap (PS4/PS5) ditelusuri lewat daftar terlaris itu sendiri.
+- **Cadangan**: Archive.org untuk platform dengan penawaran sedikit.
+- Indeks katalog dicache (`~/.cache/rom-cli/dlarchive.json`, TTL 12 jam) —
+  membuat pencarian instan. `--refresh` membangun ulang.
+- Peringkat berdasarkan kecocokan judul, penalti untuk hack/terjemahan/beta, dan
+  preferensi `Dasar` di atas `Pembaruan`/`DLC`.
+- Berkas divalidasi sebelum disimpan (zip, 7z, `PFS0` untuk `.nsp`, serta
+  `PKG`/`CNT` untuk `.pkg`).
+- Unduhan bisa dilanjutkan (`.part` + `Range`).
 
-## Modo remoto (`rom-remote`)
+## Mode jarak jauh (`rom-remote`)
 
-Roda no Mac worker (`ssh mac`) e traz os arquivos de volta. Útil quando a rede
-deste Mac bloqueia os hosts de download.
+Berjalan di Mac worker (`ssh mac`) lalu menarik berkasnya kembali. Berguna saat
+jaringan Mac ini memblokir host unduhan.
 
 ```bash
-rom-remote -p switch "mario kart"    # abre a UI no worker
-rom-remote -y -p snes "metroid"      # baixa lá e sincroniza pra cá
+rom-remote -p switch "mario kart"    # membuka UI di worker
+rom-remote -y -p snes "metroid"      # mengunduh di sana lalu sinkron ke sini
 ```
 
-Ajuste com `ROM_REMOTE_HOST`, `ROM_REMOTE_DIR` e `ROM_DIR`.
+Atur lewat `ROM_REMOTE_HOST`, `ROM_REMOTE_DIR`, dan `ROM_DIR`.
 
-## Aviso
+## Peringatan
 
-Use só o que você tem direito.
+Gunakan hanya konten yang memang Anda berhak miliki.
